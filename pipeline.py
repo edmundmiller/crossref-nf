@@ -18,6 +18,9 @@ import time
 from habanero import Crossref, WorksContainer
 import backoff
 from functools import partial
+from tqdm import tqdm
+from tqdm.auto import tqdm as tqdm_auto  # Works in both terminal and notebooks
+
 
 @backoff.on_exception(backoff.expo, Exception, max_tries=5)
 def get_work(cr: Crossref, doi: str) -> Dict:
@@ -69,10 +72,22 @@ def get_citations(doi: str, cr: Crossref) -> Iterator[Dict]:
             "total_citations": work.get("is-referenced-by-count", 0),
         }
 
+        # Show which paper we're processing
+        print(f"\nProcessing citations for: {source_info['source_title']}")
+        print(f"Total citations to process: {source_info['total_citations']}")
+
         # Get all citing works using cursor pagination
         if source_info["total_citations"] > 0:
             citations_by_year = {}
             cursor = "*"
+            processed = 0
+
+            # Create progress bar for this paper's citations
+            pbar = tqdm_auto(
+                total=source_info["total_citations"],
+                desc="Fetching citations",
+                unit="citations",
+            )
 
             while True:
                 citing_works = get_citing_works(cr, doi, cursor)
@@ -96,6 +111,11 @@ def get_citations(doi: str, cr: Crossref) -> Iterator[Dict]:
                     ):
                         year = published["date-parts"][0][0]
                         citations_by_year[year] = citations_by_year.get(year, 0) + 1
+                        processed += 1
+
+                # Update progress bar
+                pbar.n = processed
+                pbar.refresh()
 
                 # Get next cursor
                 cursor = works_container.next_cursor
@@ -103,6 +123,8 @@ def get_citations(doi: str, cr: Crossref) -> Iterator[Dict]:
                     break
 
                 time.sleep(1)  # Rate limiting
+
+            pbar.close()
 
             # Yield citation counts by year
             for year, count in sorted(citations_by_year.items()):
@@ -131,12 +153,13 @@ def crossref_citations(dois: list[str] = None):
 
     # Initialize Crossref client with proper user agent and timeout
     cr = Crossref(
-        mailto="emiller@cursor.so", ua_string="CitationTracker/1.0", timeout=30
+        mailto="crossref@edmundmiller.dev", ua_string="CitationTracker/1.0", timeout=30
     )
 
     @dlt.resource(primary_key=["source_doi", "year"], write_disposition="replace")
     def citations():
-        for doi in dois:
+        # Add progress bar for processing DOIs
+        for doi in tqdm_auto(dois, desc="Processing papers", unit="paper"):
             yield from get_citations(doi, cr)
 
     return citations
