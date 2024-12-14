@@ -1,3 +1,12 @@
+#!/usr/bin/env -S uv run
+# /// script
+# dependencies = [
+#   "dlt",
+#   "pandas",
+#   "requests",
+# ]
+# ///
+
 import dlt
 from dlt.sources.helpers import requests
 import pandas as pd
