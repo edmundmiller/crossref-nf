@@ -1,1 +1,4 @@
-year,citations,doi
+doi,title,published_date,type,container_title,author_count,citation_count,references_count,publisher,url
+10.1038/nbt.3820,Nextflow enables reproducible computational workflows,2017,journal-article,Nature Biotechnology,6,2446,22,Springer Science and Business Media LLC,https://doi.org/10.1038/nbt.3820
+10.1093/bioinformatics/bts480,Snakemake—a scalable bioinformatics workflow engine,2012,journal-article,Bioinformatics,2,2071,15,Oxford University Press (OUP),https://doi.org/10.1093/bioinformatics/bts480
+10.1186/gb-2010-11-8-r86,"Galaxy: a comprehensive approach for supporting accessible, reproducible, and transparent computational research in the life sciences",2010,journal-article,Genome Biology,4,2844,36,Springer Science and Business Media LLC,https://doi.org/10.1186/gb-2010-11-8-r86

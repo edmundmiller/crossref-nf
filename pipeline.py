@@ -1,68 +1,80 @@
 #!/usr/bin/env -S uv run
 # /// script
 # dependencies = [
-#   "dlt",
 #   "pandas",
-#   "requests",
-#   "duckdb",
-#   "habanero",
-#   "backoff"
+#   "httpx"
 # ]
 # ///
 
-import dlt
-from dlt.sources.rest_api import rest_api_source
+import httpx
+import pandas as pd
+from typing import Iterator, Dict
 
-def crossref_citations(dois: list[str] = None):
-    """DLT source for Crossref citations data"""
-    if dois is None:
-        dois = [
-            "10.1038/nbt.3820",  # Original Nextflow paper
-            "10.1093/bioinformatics/bts480",  # Snakemake paper
-            "10.1186/gb-2010-11-8-r86",  # Galaxy paper
-        ]
+def extract_date(data: Dict) -> str:
+    """Safely extract publication date from Crossref data"""
+    # Try published-print first
+    date_parts = data.get("published-print", {}).get("date-parts", [[]])
+    if date_parts and date_parts[0]:
+        return str(date_parts[0][0])
 
-    # Define the REST API configuration
-    config = {
-        "client": {
-            "base_url": "https://api.crossref.org/works",
-            "headers": {"User-Agent": "CitationTracker/1.0 (mailto:emiller@cursor.so)"},
-        },
-        "resources": [{"name": "works", "endpoint": "/{doi}"}],
-    }
+    # Fall back to published-online
+    date_parts = data.get("published-online", {}).get("date-parts", [[]])
+    if date_parts and date_parts[0]:
+        return str(date_parts[0][0])
 
-    # Create a source for each DOI
-    sources = []
-    for doi in dois:
-        source_config = dict(config)
-        source_config["resources"][0]["endpoint"] = f"/{doi}"
-        sources.append(rest_api_source(source_config))
+    # Fall back to created date
+    date_parts = data.get("created", {}).get("date-parts", [[]])
+    if date_parts and date_parts[0]:
+        return str(date_parts[0][0])
 
-    return sources
+    return ""
+
+def crossref_citations(dois: list[str]) -> Iterator[Dict]:
+    """Fetch citations from Crossref API"""
+    headers = {"User-Agent": "CitationTracker/1.0 (mailto:emiller@cursor.so)"}
+
+    with httpx.Client() as client:
+        for doi in dois:
+            response = client.get(
+                f"https://api.crossref.org/works/{doi}", headers=headers
+            )
+            response.raise_for_status()
+            data = response.json()["message"]
+
+            # Extract and flatten relevant fields
+            yield {
+                "doi": data.get("DOI"),
+                "title": data.get("title", [""])[0]
+                if data.get("title")
+                else "",  # Handle empty title list
+                "published_date": extract_date(data),
+                "type": data.get("type"),
+                "container_title": data.get("container-title", [""])[0]
+                if data.get("container-title")
+                else "",
+                "author_count": len(data.get("author", [])),
+                "citation_count": data.get("is-referenced-by-count"),
+                "references_count": data.get("references-count"),
+                "publisher": data.get("publisher"),
+                "url": data.get("URL"),
+            }
 
 
-def run_pipeline():
-    # Initialize pipeline
-    pipeline = dlt.pipeline(
-        pipeline_name="crossref_citations",
-        destination="duckdb",
-        dataset_name="crossref_citations",
-    )
+def main():
+    # List of DOIs to process
+    dois = [
+        "10.1038/nbt.3820",  # Original Nextflow paper
+        "10.1093/bioinformatics/bts480",  # Snakemake paper
+        "10.1186/gb-2010-11-8-r86",  # Galaxy paper
+    ]
 
-    # Run the pipeline for each source
-    sources = crossref_citations()
-    for source in sources:
-        load_info = pipeline.run(source)
+    # Collect all citations
+    citations = list(crossref_citations(dois))
 
-    # Show summary if data was loaded
-    if load_info and load_info.load_packages:
-        with pipeline.sql_client() as client:
-            df = client.query(
-                "SELECT * FROM crossref_citations.crossref_citations.works"
-            ).df()
-            print(f"Pipeline completed successfully. Total records: {len(df)}")
-    else:
-        print("No data was loaded in the pipeline")
+    # Convert to DataFrame and save
+    df = pd.DataFrame(citations)
+    df.to_csv("crossref_citations.csv", index=False)
+    print(f"Successfully saved {len(df)} citations to crossref_citations.csv")
 
 if __name__ == "__main__":
-    run_pipeline()
+    main()
