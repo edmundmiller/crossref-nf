@@ -1,4 +1,1 @@
-source_doi,source_title,source_published,total_citations,year,citation_count,_dlt_load_id,_dlt_id
-10.1038/nbt.3820,Nextflow enables reproducible computational workflows,2017.0,2446,2024,2446,1734185136.0338922,/b5dVOp8xpC//Q
-10.1093/bioinformatics/bts480,Snakemake—a scalable bioinformatics workflow engine,2012.0,2071,2024,2071,1734185136.0338922,AGWsxxKGvQN8AQ
-10.1186/gb-2010-11-8-r86,"Galaxy: a comprehensive approach for supporting accessible, reproducible, and transparent computational research in the life sciences",,2844,2024,2844,1734185136.0338922,8BHmjTT5LXXaXQ
+year,citations,doi
