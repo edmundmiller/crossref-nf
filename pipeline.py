@@ -25,21 +25,20 @@ def crossref_citations(dois: list[str] = None):
     # Define the REST API configuration
     config = {
         "client": {
-            "base_url": "https://api.crossref.org/works/",
+            "base_url": "https://api.crossref.org/works",
             "headers": {"User-Agent": "CitationTracker/1.0 (mailto:emiller@cursor.so)"},
         },
-        "resources": [
-            {
-                "name": "works",
-                "endpoint": {
-                    "path": "{doi}",
-                    "params": {"doi": {"type": "values", "values": dois}},
-                },
-            }
-        ],
+        "resources": [{"name": "works", "endpoint": "/{doi}"}],
     }
 
-    return rest_api_source(config)
+    # Create a source for each DOI
+    sources = []
+    for doi in dois:
+        source_config = dict(config)
+        source_config["resources"][0]["endpoint"] = f"/{doi}"
+        sources.append(rest_api_source(source_config))
+
+    return sources
 
 
 def run_pipeline():
@@ -50,13 +49,17 @@ def run_pipeline():
         dataset_name="crossref_citations",
     )
 
-    # Run the pipeline
-    load_info = pipeline.run(crossref_citations())
+    # Run the pipeline for each source
+    sources = crossref_citations()
+    for source in sources:
+        load_info = pipeline.run(source)
 
     # Show summary if data was loaded
     if load_info and load_info.load_packages:
         with pipeline.sql_client() as client:
-            df = client.query("SELECT * FROM crossref_citations.works").df()
+            df = client.query(
+                "SELECT * FROM crossref_citations.crossref_citations.works"
+            ).df()
             print(f"Pipeline completed successfully. Total records: {len(df)}")
     else:
         print("No data was loaded in the pipeline")
